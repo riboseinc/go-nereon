@@ -7,8 +7,7 @@ import (
 	"errors"
 	"io/ioutil"
 
-	ast "github.com/hashicorp/hcl/hcl/ast"
-	hclParser "github.com/hashicorp/hcl/hcl/parser"
+	"github.com/hashicorp/hcl"
 )
 
 type ConfigValueType uint32
@@ -170,26 +169,24 @@ func (config *ConfigScheme) ParseCmdLine() error {
 
 // parse configuration file
 func (config *ConfigScheme) ParseConfigFile() error {
-	var cfg_data []byte
-	var err error
-
-	var astFile *ast.File
-
 	// check the configuration file is exist
 	if len(config.configFpath) == 0 {
+		fmt.Println("No configuration file is given")
 		return nil
 	}
 
 	// read configuration file
-	if cfg_data, err = ioutil.ReadFile(config.configFpath); err != nil {
-		return errors.New("Could not read configuration file")
+	cfg_data, err := ioutil.ReadFile(config.configFpath)
+	if err != nil {
+		fmt.Println(err)
+		return err
 	}
 
 	// parse HCL configuration
-	if astFile, err = hclParser.Parse(cfg_data); err != nil {
+	if err = hcl.Decode(&config.cfgOpts, string(cfg_data)); err != nil {
+		fmt.Println(err)
 		return err
 	}
-	fmt.Println(astFile)
 
 	return nil
 }
