@@ -1,0 +1,4 @@
+= go-multiconfig
+
+This Go library provides tools for using the common configuration model defined here:
+https://github.com/riboseinc/event-configuration-models
