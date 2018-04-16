@@ -23,53 +23,64 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package mconfig
+package main
 
 import (
-	"io/ioutil"
-	"strings"
+	"os"
+	"fmt"
 
-	"github.com/hashicorp/hcl"
+	"github.com/riboseinc/go-multiconfig"
 )
 
-type HCLConfig struct {
-	opts              map[string]interface{}
+var opts = []ConfigItemScheme {
+	{
+		"config",
+		"The configuration file path",
+		CONF_VAL_TYPE_STRING,
+		&CommandLineSwitch{'c', "config"},
+		"", "",
+		"Specify the configuration file path",
+		nil,
+	},
+
+	{
+		"log-dir",
+		"The logging directory",
+		CONF_VAL_TYPE_STRING,
+		&CommandLineSwitch{'d', "log-dir"},
+		"log-settings.directory", "",
+		"Specify the logging directory",
+		nil,
+	},
+
+	{
+		"listen",
+		"Listening address for incoming events",
+		CONF_VAL_TYPE_IPADDR,
+		&CommandLineSwitch{'l', "listen"},
+		"listen.address", "",
+		"Specify the listenning address",
+		nil,
+	},
 }
 
-func NewHCLConfig() *HCLConfig {
-	return &HCLConfig {
-		opts:         make(map[string]interface{}),
-	}
-}
+func main() {
+	var err error
 
-// parse configuration file
-func (cfg *HCLConfig) ParseConfigFile(config_fpath string) error {
-	// read configuration file
-	cfg_data, err := ioutil.ReadFile(config_fpath)
-	if err != nil {
-		return err
-	}
+	config := mconfig.NewConfigScheme(opts, "examples/cfg/config.example")
 
-	// parse HCL configuration
-	if err = hcl.Decode(&cfg.opts, string(cfg_data)); err != nil {
-		return err
+	// parsing command line and configuration file
+	if err = config.ParseConfig(); err != nil {
+		fmt.Println(err)
+
+		// print command line helper
+		config.PrintCmdLineHelp()
+
+		os.Exit(1)
 	}
 
-	return nil
-}
-
-// set configuration option
-func (cfg *HCLConfig) SetCfgOption(key string, val interface{}) bool {
-	var cfg_val interface{}
-
-	seps := strings.Split(key, ".")
-
-	for i:=0; i < len(seps); i++ {
-		cfg_val = cfg.opts[seps[i]]
-		if cfg_val == nil {
-			return false
-		}
+	for i:=0; i < len(opts); i++ {
+		msg := fmt.Sprintf("The value for option '%s' is '%v'", opts[i].name, config.opts[opts[i].name])
+		fmt.Println(msg)
 	}
-
-	return true
 }

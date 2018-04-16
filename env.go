@@ -26,50 +26,39 @@
 package mconfig
 
 import (
-	"io/ioutil"
-	"strings"
-
-	"github.com/hashicorp/hcl"
+	"os"
 )
 
-type HCLConfig struct {
-	opts              map[string]interface{}
+type EnvConfig struct {
+	opts         map[string]interface{}
 }
 
-func NewHCLConfig() *HCLConfig {
-	return &HCLConfig {
-		opts:         make(map[string]interface{}),
+func NewEnvConfig() *EnvConfig {
+	return &EnvConfig {
+		opts:    make(map[string]interface{}),
 	}
 }
 
-// parse configuration file
-func (cfg *HCLConfig) ParseConfigFile(config_fpath string) error {
-	// read configuration file
-	cfg_data, err := ioutil.ReadFile(config_fpath)
-	if err != nil {
-		return err
-	}
+// parse environment variables
+func (ev *EnvConfig) ParseEnv(config_items []ConfigItemScheme, cfg_opts map[string]interface{}) error {
+	for i := 0; i < len(config_items); i++ {
+		config_item := config_items[i]
 
-	// parse HCL configuration
-	if err = hcl.Decode(&cfg.opts, string(cfg_data)); err != nil {
-		return err
+		if len(config_item.envName) == 0 || cfg_opts[config_item.name] != nil {
+			continue
+		}
+
+		ev_val := os.Getenv(config_item.envName)
+		if len(ev_val) == 0 {
+			continue
+		}
+
+		if err := CheckOptValType(config_item.name, ev_val, config_item.valType); err != nil {
+			return err
+		}
+
+		ev.opts[config_item.name] = ev_val
 	}
 
 	return nil
-}
-
-// set configuration option
-func (cfg *HCLConfig) SetCfgOption(key string, val interface{}) bool {
-	var cfg_val interface{}
-
-	seps := strings.Split(key, ".")
-
-	for i:=0; i < len(seps); i++ {
-		cfg_val = cfg.opts[seps[i]]
-		if cfg_val == nil {
-			return false
-		}
-	}
-
-	return true
 }

@@ -1,13 +1,34 @@
+/*
+ * Copyright (c) 2018, [Ribose Inc](https://www.ribose.com).
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-package main
+package mconfig
 
 import (
 	"fmt"
 	"os"
 	"errors"
-	"io/ioutil"
-
-	"github.com/hashicorp/hcl"
 )
 
 type ConfigValueType uint32
@@ -32,6 +53,7 @@ type ConfigItemScheme struct {
 	shortDesc      string
 	valType        ConfigValueType
 	command        *CommandLineSwitch
+	cfgName        string
 	envName        string
 	fullDesc       string
 	children       []ConfigItemScheme
@@ -41,9 +63,10 @@ type ConfigScheme struct {
 	configItems    []ConfigItemScheme
 	configFpath    string
 
-	cmdlineOpts    map[string]interface{}
-	envOpts        map[string]interface{}
-	cfgOpts        map[string]interface{}
+	cfg            *HCLConfig
+	ev             *EnvConfig
+
+	opts           map[string]interface{}
 }
 
 // create new config scheme
@@ -52,72 +75,37 @@ func NewConfigScheme(configItems []ConfigItemScheme, configFpath string) *Config
 		configItems:        configItems,
 		configFpath:        configFpath,
 
-		cmdlineOpts:        make(map[string]interface{}),
-		envOpts:            make(map[string]interface{}),
-		cfgOpts:            make(map[string]interface{}),
-	}
-}
+		cfg:                NewHCLConfig(),
+		ev:                 NewEnvConfig(),
 
-// merge each option values
-func (config *ConfigScheme) MergeOpts() (map[string]interface{}, error) {
-	return nil, nil
+		opts:               make(map[string]interface{}),
+	}
 }
 
 // parse configuration
-func (config *ConfigScheme) ParseConfig() (map[string]interface{}, error) {
+func (config *ConfigScheme) ParseConfig() error {
 	var err error
 
-	// parse command line arguments
-	err = config.ParseCmdLine()
-	if err != nil {
-		return nil, err
-	}
-
 	// parse configuration file
-	if len(config.configFpath) == 0 {
-		if config.cmdlineOpts["config"] != nil {
-			config.configFpath = config.cmdlineOpts["config"].(string)
-		} else if config.envOpts["config"] != nil {
-			config.configFpath = config.envOpts["config"].(string)
-		}
-	}
-	
-	err = config.ParseConfigFile()
-	if err != nil {
-		return nil, err
+	if err := config.cfg.ParseConfigFile(config.configFpath); err != nil {
+		return err
 	}
 
-	// parse environment variable
-	err = config.ParseEnvVars()
-	if err != nil {
-		return nil, err
+	// parse configuration items
+	if err := config.ev.ParseEnv(config.configItems, config.cfg.opts); err != nil {
+		return err
 	}
 
-	return config.MergeOpts()
-}
-
-// check type of option value
-func CheckOptValType(opt_type ConfigValueType, opt_val interface{}) bool {
-	matched := false
-
-	switch opt_type {
-	case CONF_VAL_TYPE_INT:
-		matched = ParseOptInt(opt_val)
-	case CONF_VAL_TYPE_STRING:
-		matched = ParseOptString(opt_val)
-	case CONF_VAL_TYPE_ARRAY:
-		matched = ParseOptArray(opt_val)
-	case CONF_VAL_TYPE_IPADDR:
-		matched = ParseOptAddrPair(opt_val)
+	// parse command line arguments
+	if err = config.ParseCmdLine(); err != nil {
+		return err
 	}
 
-	return matched
+	return nil
 }
 
 // parse command line arguments
 func (config *ConfigScheme) ParseCmdLine() error {
-	opts := make(map[string]interface{})
-
 	for i:=1; i < len(os.Args); i++ {
 		found := false
 		arg := os.Args[i]
@@ -135,7 +123,7 @@ func (config *ConfigScheme) ParseCmdLine() error {
 
 			// check whether argument needs value
 			if item.valType == CONF_VAL_TYPE_BOOLEAN {
-				opts[item.name] = true
+				config.opts[item.name] = true
 				found = true
 				break
 			}
@@ -146,12 +134,27 @@ func (config *ConfigScheme) ParseCmdLine() error {
 				return errors.New(fmt.Sprintf("Missing argument for option '%s'", arg))
 			}
 
-			if matched := CheckOptValType(item.valType, os.Args[i]); !matched {
-				return errors.New(fmt.Sprintf("Invalid argument type for option '%s'", arg))
+			if err := CheckOptValType(item.name, os.Args[i], item.valType); err != nil {
+				return err
 			}
 
-			// set value
-			opts[item.name] = string(os.Args[i])
+			// check if the value was set by configuration file
+			if cfg_exist := config.cfg.SetCfgOption(item.cfgName, os.Args[i]); cfg_exist {
+				found = true
+				continue
+			}
+
+			// check if the value was set by environment
+			if config.ev.opts[item.name] != nil {
+				fmt.Printf("Found val '%v' for name '%s' from environment\n", config.cfg.opts[item.name], item.name)
+				config.ev.opts[item.name] = os.Args[i]
+				found = true
+				continue
+			}
+
+			fmt.Printf("name: %s, val: %v\n", item.name, os.Args[i])
+
+			config.opts[item.name] = os.Args[i]
 			found = true
 
 			break
@@ -162,42 +165,19 @@ func (config *ConfigScheme) ParseCmdLine() error {
 		}
 	}
 
-	config.cmdlineOpts = opts
-
-	return nil
-}
-
-// parse configuration file
-func (config *ConfigScheme) ParseConfigFile() error {
-	// check the configuration file is exist
-	if len(config.configFpath) == 0 {
-		fmt.Println("No configuration file is given")
-		return nil
+	for k, v := range config.cfg.opts {
+		config.opts[k] = v
 	}
 
-	// read configuration file
-	cfg_data, err := ioutil.ReadFile(config.configFpath)
-	if err != nil {
-		fmt.Println(err)
-		return err
+	for k, v := range config.ev.opts {
+		config.opts[k] = v
 	}
 
-	// parse HCL configuration
-	if err = hcl.Decode(&config.cfgOpts, string(cfg_data)); err != nil {
-		fmt.Println(err)
-		return err
-	}
-
-	return nil
-}
-
-// parse environment variables
-func (config *ConfigScheme) ParseEnvVars() error {
 	return nil
 }
 
 // print help
-func (config *ConfigScheme) PrintHelp() {
+func (config *ConfigScheme) PrintCmdLineHelp() {
 	maxFullkeyLen := 0
 	maxDescLen := 0
 	for i:=0; i < len(config.configItems); i++ {
