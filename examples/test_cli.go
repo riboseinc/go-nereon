@@ -32,55 +32,19 @@ import (
 	"github.com/riboseinc/go-multiconfig"
 )
 
-var opts = []ConfigItemScheme {
-	{
-		"config",
-		"The configuration file path",
-		CONF_VAL_TYPE_STRING,
-		&CommandLineSwitch{'c', "config"},
-		"", "",
-		"Specify the configuration file path",
-		nil,
-	},
-
-	{
-		"log-dir",
-		"The logging directory",
-		CONF_VAL_TYPE_STRING,
-		&CommandLineSwitch{'d', "log-dir"},
-		"log-settings.directory", "",
-		"Specify the logging directory",
-		nil,
-	},
-
-	{
-		"listen",
-		"Listening address for incoming events",
-		CONF_VAL_TYPE_IPADDR,
-		&CommandLineSwitch{'l', "listen"},
-		"listen.address", "",
-		"Specify the listenning address",
-		nil,
-	},
-}
-
 func main() {
-	var err error
+	config := mconfig.NewConfigScheme()
 
-	config := mconfig.NewConfigScheme(opts, "examples/cfg/config.example")
-
-	// parsing command line and configuration file
-	if err = config.ParseConfig(); err != nil {
+	// parse HCL options
+	if err := config.ParseHCLOptions("examples/options.example"); err != nil {
 		fmt.Println(err)
-
-		// print command line helper
-		config.PrintCmdLineHelp()
-
 		os.Exit(1)
 	}
 
-	for i:=0; i < len(opts); i++ {
-		msg := fmt.Sprintf("The value for option '%s' is '%v'", opts[i].name, config.opts[opts[i].name])
-		fmt.Println(msg)
+	if err := config.ParseCmdLine(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
+
+	config.PrintCmdLineHelp()
 }

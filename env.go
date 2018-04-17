@@ -27,38 +27,33 @@ package mconfig
 
 import (
 	"os"
+	"fmt"
+	"errors"
 )
 
 type EnvConfig struct {
-	opts         map[string]interface{}
+	opts        map[string]string
 }
 
 func NewEnvConfig() *EnvConfig {
 	return &EnvConfig {
-		opts:    make(map[string]interface{}),
+		opts:    make(map[string]string),
 	}
 }
 
 // parse environment variables
-func (ev *EnvConfig) ParseEnv(config_items []ConfigItemScheme, cfg_opts map[string]interface{}) error {
-	for i := 0; i < len(config_items); i++ {
-		config_item := config_items[i]
-
-		if len(config_item.envName) == 0 || cfg_opts[config_item.name] != nil {
-			continue
-		}
-
-		ev_val := os.Getenv(config_item.envName)
-		if len(ev_val) == 0 {
-			continue
-		}
-
-		if err := CheckOptValType(config_item.name, ev_val, config_item.valType); err != nil {
-			return err
-		}
-
-		ev.opts[config_item.name] = ev_val
+func (ev *EnvConfig) ParseEnv(envName string, valType string) error {
+	envVal := os.Getenv(envName)
+	if len(envVal) == 0 {
+		ev.opts[envName] = ""
+		return nil
 	}
+
+	if matched := CheckOptValType(envName, envVal, valType); !matched {
+		return errors.New(fmt.Sprintf("Invalid value type '%v' for '%s' environment variable", envVal, envName))
+	}
+
+	ev.opts[envName] = envVal
 
 	return nil
 }

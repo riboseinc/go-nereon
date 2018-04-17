@@ -29,75 +29,72 @@ import (
 	"fmt"
 	"os"
 	"errors"
+	"io/ioutil"
+
+	"github.com/hashicorp/hcl"
 )
 
-type ConfigValueType uint32
+// type for option value
 const (
-	CONF_VAL_TYPE_INT ConfigValueType = iota
-	CONF_VAL_TYPE_STRING
-	CONF_VAL_TYPE_FLOAT
-	CONF_VAL_TYPE_BOOLEAN
-	CONF_VAL_TYPE_IPPORT
-	CONF_VAL_TYPE_HOSTPORT
-	CONF_VAL_TYPE_IPADDR
-	CONF_VAL_TYPE_ARRAY
+	OPT_TYPE_STRING = "string"
+	OPT_TYPE_BOOL   = "bool"
+	OPT_TYPE_INT    = "int"
+	OPT_TYPE_IPPORT = "ipport"
+	OPT_TYPE_ARRAY  = "array"
+	OPT_TYPE_PROTO  = "proto"
 )
 
-type CommandLineSwitch struct {
-	shortKey       byte
-	fullKey        string
+type CliKeyOpts struct {
+	ShortKey          string                `hcl:"short"`
+	FullKey           string                `hcl:"long"`
 }
 
-type ConfigItemScheme struct {
-	name           string
-	shortDesc      string
-	valType        ConfigValueType
-	command        *CommandLineSwitch
-	cfgName        string
-	envName        string
-	fullDesc       string
-	children       []ConfigItemScheme
+type HCLCliOptions struct {
+	Name              string                `hcl:",key"`
+	Type              string                `hcl:"type"`
+	Switch            CliKeyOpts            `hcl:"switch"`
+	Desc              CliKeyOpts            `hcl:"description"`
+	EnvName           string                `hcl:"env"`
+	CfgKey            string                `hcl:"config"`
+	ShowHelper        bool                  `hcl:"helper"`
+	OverrideCfgPath   bool                  `hcl:"override_cfg"`
+	Value             interface{}
+}
+
+type HCLCliConfig struct {
+	HclCliOpts     []HCLCliOptions          `hcl:"cmdline"`
 }
 
 type ConfigScheme struct {
-	configItems    []ConfigItemScheme
+	hclCliConfig   *HCLCliConfig
 	configFpath    string
 
-	cfg            *HCLConfig
-	ev             *EnvConfig
-
-	opts           map[string]interface{}
+	envConfig      *EnvConfig
 }
 
 // create new config scheme
-func NewConfigScheme(configItems []ConfigItemScheme, configFpath string) *ConfigScheme {
+func NewConfigScheme() *ConfigScheme {
 	return &ConfigScheme {
-		configItems:        configItems,
-		configFpath:        configFpath,
-
-		cfg:                NewHCLConfig(),
-		ev:                 NewEnvConfig(),
-
-		opts:               make(map[string]interface{}),
+		hclCliConfig:        &HCLCliConfig{},
+		envConfig:           NewEnvConfig(),
 	}
 }
 
-// parse configuration
-func (config *ConfigScheme) ParseConfig() error {
-	var err error
-
-	// parse configuration file
-	if err := config.cfg.ParseConfigFile(config.configFpath); err != nil {
+// parse HCL options
+func (config *ConfigScheme) ParseHCLOptions(hclOptFpath string) error {
+	// read HCL configuration from file
+	hclBytes, err := ioutil.ReadFile(hclOptFpath)
+	if err != nil {
 		return err
 	}
 
-	// parse configuration items
-	if err := config.ev.ParseEnv(config.configItems, config.cfg.opts); err != nil {
+	// decode HCL object
+	hclTree, err := hcl.Parse(string(hclBytes))
+	if err != nil {
 		return err
 	}
 
-	// parse command line arguments
-	if err = config.ParseCmdLine(); err != nil {
+	if err := hcl.DecodeObject(&config.hclCliConfig, hclTree); err != nil {
 		return err
 	}
 
@@ -110,11 +107,11 @@ func (config *ConfigScheme) ParseCmdLine() error {
 		found := false
 		arg := os.Args[i]
 
-		for j:=0; j < len(config.configItems); j++ {
-			item := config.configItems[j]
+		for j:=0; j < len(config.hclCliConfig.HclCliOpts); j++ {
+			opt := config.hclCliConfig.HclCliOpts[j]
 
-			shortKey := "-" + string(item.command.shortKey)
-			fullKey := "--" + item.command.fullKey
+			shortKey := "-" + opt.Switch.ShortKey
+			fullKey := "--" + opt.Switch.FullKey
 
 			// matches for short and long name
 			if arg != shortKey && arg != fullKey {
@@ -122,10 +119,13 @@ func (config *ConfigScheme) ParseCmdLine() error {
 			}
 
 			// check whether argument needs value
-			if item.valType == CONF_VAL_TYPE_BOOLEAN {
-				config.opts[item.name] = true
+			if opt.Type == OPT_TYPE_BOOL {
 				found = true
 				break
+			}
+
+			if matched := CheckOptValType(opt.Name, os.Args[i], opt.Type); !matched {
+				return errors.New(fmt.Sprintf("Invalid value type '%v' for '%s' option", os.Args[i], opt.Name))
 			}
 
 			// check for variable type
@@ -134,43 +134,13 @@ func (config *ConfigScheme) ParseCmdLine() error {
 				return errors.New(fmt.Sprintf("Missing argument for option '%s'", arg))
 			}
 
-			if err := CheckOptValType(item.name, os.Args[i], item.valType); err != nil {
-				return err
-			}
-
-			// check if the value was set by configuration file
-			if cfg_exist := config.cfg.SetCfgOption(item.cfgName, os.Args[i]); cfg_exist {
-				found = true
-				continue
-			}
-
-			// check if the value was set by environment
-			if config.ev.opts[item.name] != nil {
-				fmt.Printf("Found val '%v' for name '%s' from environment\n", config.cfg.opts[item.name], item.name)
-				config.ev.opts[item.name] = os.Args[i]
-				found = true
-				continue
-			}
-
-			fmt.Printf("name: %s, val: %v\n", item.name, os.Args[i])
-
-			config.opts[item.name] = os.Args[i]
 			found = true
-
 			break
 		}
 
 		if !found {
 			return errors.New(fmt.Sprintf("Invalid option '%s'", arg))
 		}
-	}
-
-	for k, v := range config.cfg.opts {
-		config.opts[k] = v
-	}
-
-	for k, v := range config.ev.opts {
-		config.opts[k] = v
 	}
 
 	return nil
@@ -180,38 +150,38 @@ func (config *ConfigScheme) ParseCmdLine() error {
 func (config *ConfigScheme) PrintCmdLineHelp() {
 	maxFullkeyLen := 0
 	maxDescLen := 0
-	for i:=0; i < len(config.configItems); i++ {
-		item := config.configItems[i]
+	for i:=0; i < len(config.hclCliConfig.HclCliOpts); i++ {
+		opt := config.hclCliConfig.HclCliOpts[i]
 
-		if len(item.command.fullKey) > maxFullkeyLen {
-			maxFullkeyLen = len(item.command.fullKey)
+		if len(opt.Switch.FullKey) > maxFullkeyLen {
+			maxFullkeyLen = len(opt.Switch.FullKey)
 		}
 
-		if len(item.shortDesc) > maxDescLen {
-			maxDescLen = len(item.shortDesc)
+		if len(opt.Desc.ShortKey) > maxDescLen {
+			maxDescLen = len(opt.Desc.ShortKey)
 		}
 	}
 	maxFullkeyLen += 2
 	maxDescLen += 2
 
 	fmt.Printf("Usage: %s [options]\n", os.Args[0])
-	for i:=0; i < len(config.configItems); i++ {
-		item := config.configItems[i]
+	for i:=0; i < len(config.hclCliConfig.HclCliOpts); i++ {
+		opt := config.hclCliConfig.HclCliOpts[i]
 
-		paddingFullkey := FillBytesArray(maxFullkeyLen - len(item.command.fullKey), ' ')
-		paddingDesc := FillBytesArray(maxDescLen - len(item.shortDesc), ' ')
-		if item.valType != CONF_VAL_TYPE_BOOLEAN {
+		paddingFullkey := FillBytesArray(maxFullkeyLen - len(opt.Switch.FullKey), ' ')
+		paddingDesc := FillBytesArray(maxDescLen - len(opt.Desc.ShortKey), ' ')
+		if opt.Type != OPT_TYPE_BOOL {
 			fmt.Printf("  -%v|--%v%v<%v>%v: %v\n",
-				string(item.command.shortKey),
-				item.command.fullKey, string(paddingFullkey),
-				item.shortDesc, string(paddingDesc),
-				item.fullDesc)
+				opt.Switch.ShortKey,
+				opt.Switch.FullKey, string(paddingFullkey),
+				opt.Desc.ShortKey, string(paddingDesc),
+				opt.Desc.FullKey)
 		} else {
 			fmt.Printf("  -%v|--%v%v%v  : %v\n",
-				string(item.command.shortKey),
-				item.command.fullKey, string(paddingFullkey),
+				opt.Switch.ShortKey,
+				opt.Switch.FullKey, string(paddingFullkey),
 				string(paddingDesc),
-				item.fullDesc)
+				opt.Desc.FullKey)
 		}
 	}
 }
