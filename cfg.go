@@ -27,6 +27,10 @@ package mconfig
 
 import (
 	"io/ioutil"
+	// "strings"
+	// "fmt"
+	// "reflect"
+	// "log"
 
 	"github.com/hashicorp/hcl"
 )
@@ -54,17 +58,15 @@ func (config *ConfigScheme) ParseConfigFile(configFpath string, cfgDict interfac
 }
 
 // set configuration option
-// func (config) SetCfgOption(key string, val interface{}) bool {
-// 	var cfg_val interface{}
+func (config *ConfigScheme) SetCfgOption(key string, val interface{}, cfgDict interface{}) bool {
+	// seps := strings.Split(key, ".")
 
-// 	seps := strings.Split(key, ".")
+	// for i:=0; i < len(seps); i++ {
+	// 	cfg_val = cfgDict[seps[i]]
+	// 	if cfg_val == nil {
+	// 		return false
+	// 	}
+	// }
 
-// 	for i:=0; i < len(seps); i++ {
-// 		cfg_val = cfg.opts[seps[i]]
-// 		if cfg_val == nil {
-// 			return false
-// 		}
-// 	}
-
-// 	return true
-// }
+	return true
+}

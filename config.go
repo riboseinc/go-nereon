@@ -71,9 +71,6 @@ type ConfigScheme struct {
 	overrideCfgPath string
 
 	envConfig       *EnvConfig
-	// cfgConfig       *HCLConfig
-
-	opts            map[string]interface{}
 }
 
 // create new config scheme
@@ -84,9 +81,6 @@ func NewConfigScheme() *ConfigScheme {
 		overrideCfgPath:     "",
 
 		envConfig:           NewEnvConfig(),
-		// cfgConfig:           NewHCLConfig(),
-
-		opts:                make(map[string]interface{}),
 	}
 }
 
@@ -110,7 +104,22 @@ func (config *ConfigScheme) ParseConfig(hclOptFpath string, cfgFpath string, cfg
 		return err
 	}
 
+	// merge config
+	config.MergeConfig(cfgDict)
+
 	return nil
+}
+
+func (config *ConfigScheme) MergeConfig(cfgDict interface{}) {
+	for i:=0; i < len(config.hclCliConfig.HclCliOpts); i++ {
+		opt := config.hclCliConfig.HclCliOpts[i]
+
+		if opt.CfgKey == "" {
+			continue
+		}
+
+		config.SetCfgOption(opt.CfgKey, opt.Value, cfgDict)
+	}
 }
 
 // parse HCL options
@@ -154,9 +163,10 @@ func (config *ConfigScheme) ParseCmdLine() error {
 			// check whether argument needs value
 			if opt.Type == OPT_TYPE_BOOL {
 				if opt.ShowHelper == true {
-					config.printHelpMsg = true
+					config.PrintCmdLineHelp()
+					os.Exit(0)
 				} else {
-					config.opts[opt.Name] = true
+					opt.Value = true
 				}
 
 				found = true
@@ -176,7 +186,7 @@ func (config *ConfigScheme) ParseCmdLine() error {
 			if opt.OverrideCfgPath == true {
 				config.overrideCfgPath = os.Args[i]
 			} else {
-				config.opts[opt.Name] = os.Args[i]
+				opt.Value = true
 			}
 
 			found = true

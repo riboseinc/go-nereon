@@ -68,8 +68,9 @@ func main() {
 	config := mconfig.NewConfigScheme()
 
 	// parse HCL options
-	if err := config.ParseConfig("options.example", "config.example", &testCfg); err != nil {
+	if err := config.ParseConfig("options.example", "config.example", testCfg); err != nil {
 		fmt.Println(err)
+		config.PrintCmdLineHelp()
 		os.Exit(1)
 	}
 	fmt.Println(testCfg)
