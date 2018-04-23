@@ -14,7 +14,7 @@ cmdline "log_directory" {
 	}
 
 	env = "KAOHI_LOG_DIR"
-	config = "${log_settings.directory}"
+	config = "global.log_directory"
 }
 
 cmdline "log_level" {
@@ -30,7 +30,7 @@ cmdline "log_level" {
 	}
 
 	env = "KAOHI_LOG_LEVEL"
-	config = "${log_settings.level}"
+	config = "global.log_level"
 }
 
 cmdline "listen_address" {
@@ -46,7 +46,7 @@ cmdline "listen_address" {
 	}
 
 	env = "KAOHI_LISTEN_ADDR"
-	config = "${listen_address}"
+	config = "global.listen_address"
 }
 
 cmdline "config_files" {
@@ -62,7 +62,7 @@ cmdline "config_files" {
 	}
 
 	env = "KAOHI_CONFIG_FILES"
-	config = "${configs.*.files}"
+	config = "config-files.*.files"
 }
 
 cmdline "cmd_interval" {
@@ -78,7 +78,7 @@ cmdline "cmd_interval" {
 	}
 
 	env = "KAOHI_CMD_INTERVAL"
-	config = "${commands.*.interval}"
+	config = "commands.*.interval"
 }
 
 cmdline "cmd_uid" {
@@ -94,7 +94,7 @@ cmdline "cmd_uid" {
 	}
 
 	env = "KAOHI_CMD_UID"
-	config = "${commands.*.uid}"
+	config = "commands.*.uid"
 }
 
 cmdline "cmd_files" {
@@ -110,7 +110,7 @@ cmdline "cmd_files" {
 	}
 
 	env = "KAOHI_CMD_FILES"
-	config = "${commands.*.files}"
+	config = "commands.*.files"
 }
 
 cmdline "rsyslog_listen" {
@@ -126,7 +126,7 @@ cmdline "rsyslog_listen" {
 	}
 
 	env = "KAOHI_RSYSLOG_LISTEN"
-	config = "${rsyslog.listen}"
+	config = "rsyslog.listen_address"
 }
 
 cmdline "rsyslog_proto" {
@@ -142,7 +142,7 @@ cmdline "rsyslog_proto" {
 	}
 
 	env = "KAOHI_RSYSLOG_PROTO"
-	config = "${rsyslog.protocol}"
+	config = "rsyslog.protocol"
 }
 
 cmdline "help" {

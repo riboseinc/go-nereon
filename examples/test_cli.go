@@ -29,22 +29,48 @@ import (
 	"os"
 	"fmt"
 
-	"github.com/riboseinc/go-multiconfig"
+	".."
 )
 
+type globalConfig struct {
+	LogDir         string             `hcl:"log_directory"`
+	LogLevel       int                `hcl:"log_level"`
+
+	ListenAddr     string             `hcl:"listen_address"`
+}
+
+type cfgFilesConfig struct {
+	Name           string             `hcl:",key"`
+	Files          []string           `hcl:"files"`
+}
+
+type cmdConfig struct {
+	Name           string             `hcl:",key"`
+	Uid            int                `hcl:"uid"`
+	Interval       int                `hcl:"interval"`
+	Cmds           []string           `hcl:"cmds"`
+}
+
+type RsyslogConfig struct {
+	ListenAddr     string             `hcl:"listen_address"`
+	Protocol       string             `hcl:"protocol"`
+}
+
+type testConfig struct {
+	Globals        globalConfig       `hcl:"global"`
+	ConfigFiles    []cfgFilesConfig   `hcl:"config-files"`
+	Commands       []cmdConfig        `hcl:"commands"`
+	Rsyslog        RsyslogConfig      `hcl:"rsyslog"`
+}
+
 func main() {
+	testCfg := &testConfig{}
 	config := mconfig.NewConfigScheme()
 
 	// parse HCL options
-	if err := config.ParseHCLOptions("examples/options.example"); err != nil {
+	if err := config.ParseConfig("options.example", "config.example", &testCfg); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
-	if err := config.ParseCmdLine(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	config.PrintCmdLineHelp()
+	fmt.Println(testCfg)
 }

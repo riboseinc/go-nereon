@@ -1,41 +1,28 @@
 
-log_settings {
-	directory = "/var/log/kaohi"
-	level = 1
+global {
+	log_directory = "/var/log/kaohi"
+	log_level = 1
+
+	listen_address = "127.0.0.1:8443"
 }
 
-listen_address = "127.0.0.1:8443"
-
-configs "cfg-group1" {
+config-files "group1" {
 	files = [
-		"/var/log/system.log"
+		"/var/log/system.log",
 		"/var/log/fail.log"
 	]
 }
 
-configs "cfg-group2" {
-	files = [
-		"/var/log/openvpn.log"
-	]
-}
-
-commands "cmd-group1" {
+commands "group1" {
 	uid = 501
 	interval = 10
 	cmds = [
-		"/bin/ls -l /"
+		"/bin/ls -l /",
 		"tcpdump -i eth0"
 	]
 }
 
-commands "cmd-group2" {
-	interval = 5
-	cmds = [
-		"nslookup www.google.com"
-	]
-}
-
 rsyslog {
-	listen = "*.5080"
+	listen_address = "*.5080"
 	protocol = "tcp"
 }

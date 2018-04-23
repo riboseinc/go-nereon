@@ -66,18 +66,51 @@ type HCLCliConfig struct {
 }
 
 type ConfigScheme struct {
-	hclCliConfig   *HCLCliConfig
-	configFpath    string
+	hclCliConfig    *HCLCliConfig
+	printHelpMsg    bool
+	overrideCfgPath string
 
-	envConfig      *EnvConfig
+	envConfig       *EnvConfig
+	// cfgConfig       *HCLConfig
+
+	opts            map[string]interface{}
 }
 
 // create new config scheme
 func NewConfigScheme() *ConfigScheme {
 	return &ConfigScheme {
 		hclCliConfig:        &HCLCliConfig{},
+		printHelpMsg:        false,
+		overrideCfgPath:     "",
+
 		envConfig:           NewEnvConfig(),
+		// cfgConfig:           NewHCLConfig(),
+
+		opts:                make(map[string]interface{}),
 	}
+}
+
+// parse the configuration file
+func (config *ConfigScheme) ParseConfig(hclOptFpath string, cfgFpath string, cfgDict interface{}) error {
+	var cfg string
+
+	// parse command line at first
+	if err := config.ParseHCLOptions(hclOptFpath); err != nil {
+		return err
+	}
+
+	if config.overrideCfgPath != "" {
+		cfg = config.overrideCfgPath
+	} else {
+		cfg = cfgFpath
+	}
+
+	// parse configuration file
+	if err := config.ParseConfigFile(cfg, cfgDict); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // parse HCL options
@@ -98,7 +131,7 @@ func (config *ConfigScheme) ParseHCLOptions(hclOptFpath string) error {
 		return err
 	}
 
-	return nil
+	return config.ParseCmdLine()
 }
 
 // parse command line arguments
@@ -120,6 +153,12 @@ func (config *ConfigScheme) ParseCmdLine() error {
 
 			// check whether argument needs value
 			if opt.Type == OPT_TYPE_BOOL {
+				if opt.ShowHelper == true {
+					config.printHelpMsg = true
+				} else {
+					config.opts[opt.Name] = true
+				}
+
 				found = true
 				break
 			}
@@ -132,6 +171,12 @@ func (config *ConfigScheme) ParseCmdLine() error {
 			i++
 			if i == len(os.Args) {
 				return errors.New(fmt.Sprintf("Missing argument for option '%s'", arg))
+			}
+
+			if opt.OverrideCfgPath == true {
+				config.overrideCfgPath = os.Args[i]
+			} else {
+				config.opts[opt.Name] = os.Args[i]
 			}
 
 			found = true

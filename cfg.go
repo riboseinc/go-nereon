@@ -27,31 +27,26 @@ package mconfig
 
 import (
 	"io/ioutil"
-	"strings"
 
 	"github.com/hashicorp/hcl"
 )
 
-type HCLConfig struct {
-	opts              map[string]interface{}
-}
-
-func NewHCLConfig() *HCLConfig {
-	return &HCLConfig {
-		opts:         make(map[string]interface{}),
-	}
-}
-
 // parse configuration file
-func (cfg *HCLConfig) ParseConfigFile(config_fpath string) error {
+func (config *ConfigScheme) ParseConfigFile(configFpath string, cfgDict interface{}) error {
 	// read configuration file
-	cfg_data, err := ioutil.ReadFile(config_fpath)
+	cfg_data, err := ioutil.ReadFile(configFpath)
+	if err != nil {
+		return err
+	}
+
+	// get HCL tree
+	cfg_tree, err := hcl.Parse(string(cfg_data))
 	if err != nil {
 		return err
 	}
 
 	// parse HCL configuration
-	if err = hcl.Decode(&cfg.opts, string(cfg_data)); err != nil {
+	if err = hcl.DecodeObject(cfgDict, cfg_tree); err != nil {
 		return err
 	}
 
@@ -59,17 +54,17 @@ func (cfg *HCLConfig) ParseConfigFile(config_fpath string) error {
 }
 
 // set configuration option
-func (cfg *HCLConfig) SetCfgOption(key string, val interface{}) bool {
-	var cfg_val interface{}
+// func (config) SetCfgOption(key string, val interface{}) bool {
+// 	var cfg_val interface{}
 
-	seps := strings.Split(key, ".")
+// 	seps := strings.Split(key, ".")
 
-	for i:=0; i < len(seps); i++ {
-		cfg_val = cfg.opts[seps[i]]
-		if cfg_val == nil {
-			return false
-		}
-	}
+// 	for i:=0; i < len(seps); i++ {
+// 		cfg_val = cfg.opts[seps[i]]
+// 		if cfg_val == nil {
+// 			return false
+// 		}
+// 	}
 
-	return true
-}
+// 	return true
+// }
