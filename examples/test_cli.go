@@ -29,58 +29,49 @@ import (
 	"os"
 	"fmt"
 
-	"github.com/riboseinc/go-multiconfig"
+	".."
 )
 
-var opts = []ConfigItemScheme {
-	{
-		"config",
-		"The configuration file path",
-		CONF_VAL_TYPE_STRING,
-		&CommandLineSwitch{'c', "config"},
-		"", "",
-		"Specify the configuration file path",
-		nil,
-	},
+type globalConfig struct {
+	LogDir         string             `hcl:"log_directory"`
+	LogLevel       int                `hcl:"log_level"`
 
-	{
-		"log-dir",
-		"The logging directory",
-		CONF_VAL_TYPE_STRING,
-		&CommandLineSwitch{'d', "log-dir"},
-		"log-settings.directory", "",
-		"Specify the logging directory",
-		nil,
-	},
+	ListenAddr     string             `hcl:"listen_address"`
+}
 
-	{
-		"listen",
-		"Listening address for incoming events",
-		CONF_VAL_TYPE_IPADDR,
-		&CommandLineSwitch{'l', "listen"},
-		"listen.address", "",
-		"Specify the listenning address",
-		nil,
-	},
+type cfgFilesConfig struct {
+	Name           string             `hcl:",key"`
+	Files          []string           `hcl:"files"`
+}
+
+type cmdConfig struct {
+	Name           string             `hcl:",key"`
+	Uid            int                `hcl:"uid"`
+	Interval       int                `hcl:"interval"`
+	Cmds           []string           `hcl:"cmds"`
+}
+
+type RsyslogConfig struct {
+	ListenAddr     string             `hcl:"listen_address"`
+	Protocol       string             `hcl:"protocol"`
+}
+
+type testConfig struct {
+	Globals        globalConfig       `hcl:"global"`
+	ConfigFiles    []cfgFilesConfig   `hcl:"config-files"`
+	Commands       []cmdConfig        `hcl:"commands"`
+	Rsyslog        RsyslogConfig      `hcl:"rsyslog"`
 }
 
 func main() {
-	var err error
+	testCfg := &testConfig{}
+	config := mconfig.NewConfigScheme()
 
-	config := mconfig.NewConfigScheme(opts, "examples/cfg/config.example")
-
-	// parsing command line and configuration file
-	if err = config.ParseConfig(); err != nil {
+	// parse HCL options
+	if err := config.ParseConfig("options.example", "config.example", testCfg); err != nil {
 		fmt.Println(err)
-
-		// print command line helper
 		config.PrintCmdLineHelp()
-
 		os.Exit(1)
 	}
-
-	for i:=0; i < len(opts); i++ {
-		msg := fmt.Sprintf("The value for option '%s' is '%v'", opts[i].name, config.opts[opts[i].name])
-		fmt.Println(msg)
-	}
+	fmt.Println(testCfg)
 }

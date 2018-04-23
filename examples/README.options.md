@@ -1,0 +1,88 @@
+
+# The example of the options for `go-multiconfig`
+
+```
+
+program "kaohi" {
+	"pid": "/var/run/kaohi.pid"
+}
+
+man {
+	program = "${program.kaohi}"
+	format = "asciidoc"
+	content = <<-HERE
+	= kaohi(1)
+	Ribose Inc.
+	v0.9.0.1
+
+	:manmanual: KAOHI
+	:mansource: KAOHI
+
+	== Name
+
+	kaohi - log collection daemon for event model logs
+
+	== Synopsis
+
+	*kaohi* ['OPTION']... 'FILEPATH'...
+
+	== Options
+
+	{ this.options }
+
+	== Resources
+
+	*Project web site:* http://www.kaohi.org
+
+	HERE
+}
+
+config = "config.example"
+
+config "log-dir" {
+	type = "string"
+
+	cmdline {
+		switch {
+			short = "d"
+			long = "log-dir"
+		}
+
+		description {
+			short = "The configuration file path"
+			long = "Specify the configuration file path"
+		}
+	}
+
+	keyword {
+		config = "log-settings.directory"
+		env = "GO_MULTI_LOG_DIR"
+	}
+
+	default = "/var/log/example"
+}
+
+config "listen" {
+	type = "ipport"
+
+	cmdline {
+		switch {
+			short = "l"
+			long = "listen"
+		}
+
+		description {
+			short = "Listening address for incoming events"
+			long = "Specify the listenning address"
+		}
+	}
+
+	keyword {
+		config = "listen.address"
+		env = "GO_MULTI_LISTEN_ADDR"
+	}
+
+	default = "127.0.0.1:8544"
+}
+
+```
