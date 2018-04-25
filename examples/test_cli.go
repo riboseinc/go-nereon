@@ -28,6 +28,7 @@ package main
 import (
 	"os"
 	"fmt"
+	"io/ioutil"
 
 	".."
 )
@@ -67,8 +68,15 @@ func main() {
 	testCfg := &testConfig{}
 	config := mconfig.NewConfigScheme()
 
+	// read HCL configuration from file
+	hclBytes, err := ioutil.ReadFile("options.example")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	// parse HCL options
-	if err := config.ParseConfig("options.example", "config.example", testCfg); err != nil {
+	if err := config.ParseConfig(string(hclBytes), "config.example", testCfg); err != nil {
 		fmt.Println(err)
 		config.PrintCmdLineHelp()
 		os.Exit(1)

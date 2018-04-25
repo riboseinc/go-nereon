@@ -29,9 +29,10 @@ import (
 	"fmt"
 	"os"
 	"errors"
-	"io/ioutil"
+	"encoding/json"
 
 	"github.com/hashicorp/hcl"
+	jsonParser "github.com/hashicorp/hcl/json/parser"
 )
 
 // type for option value
@@ -71,6 +72,8 @@ type ConfigScheme struct {
 	overrideCfgPath string
 
 	envConfig       *EnvConfig
+
+	cfgMap          map[string]interface{}
 }
 
 // create new config scheme
@@ -81,15 +84,17 @@ func NewConfigScheme() *ConfigScheme {
 		overrideCfgPath:     "",
 
 		envConfig:           NewEnvConfig(),
+		cfgMap:              make(map[string]interface{}),
 	}
 }
 
 // parse the configuration file
-func (config *ConfigScheme) ParseConfig(hclOptFpath string, cfgFpath string, cfgDict interface{}) error {
+func (config *ConfigScheme) ParseConfig(hclOpts string, cfgFpath string, cfgDict interface{}) error {
 	var cfg string
 
 	// parse command line at first
-	if err := config.ParseHCLOptions(hclOptFpath); err != nil {
+	if err := config.ParseHCLOptions(hclOpts); err != nil {
+		fmt.Println("Parsing HCL options has failed.")
 		return err
 	}
 
@@ -99,39 +104,49 @@ func (config *ConfigScheme) ParseConfig(hclOptFpath string, cfgFpath string, cfg
 		cfg = cfgFpath
 	}
 
-	// parse configuration file
-	if err := config.ParseConfigFile(cfg, cfgDict); err != nil {
+	// convert configuration to map
+	if err := config.ConvertConfigToMap(cfg); err != nil {
+		fmt.Println("Converting configuration to map has failed.")
 		return err
 	}
 
 	// merge config
-	config.MergeConfig(cfgDict)
+	config.MergeConfig()
 
-	return nil
-}
-
-func (config *ConfigScheme) MergeConfig(cfgDict interface{}) {
-	for i:=0; i < len(config.hclCliConfig.HclCliOpts); i++ {
-		opt := config.hclCliConfig.HclCliOpts[i]
-
-		if opt.CfgKey == "" {
-			continue
-		}
-
-		config.SetCfgOption(opt.CfgKey, opt.Value, cfgDict)
-	}
-}
-
-// parse HCL options
-func (config *ConfigScheme) ParseHCLOptions(hclOptFpath string) error {
-	// read HCL configuration from file
-	hclBytes, err := ioutil.ReadFile(hclOptFpath)
+	// marshal map to JSON
+	json, err := json.MarshalIndent(config.cfgMap, "", " ")
 	if err != nil {
 		return err
 	}
 
+	ast, err := jsonParser.Parse(json)
+	if err != nil {
+		return err
+	}
+
+	if err := hcl.DecodeObject(cfgDict, ast); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (config *ConfigScheme) MergeConfig() {
+	for i:=0; i < len(config.hclCliConfig.HclCliOpts); i++ {
+		opt := config.hclCliConfig.HclCliOpts[i]
+
+		if opt.CfgKey == "" || opt.Value == nil {
+			continue
+		}
+
+		config.OverrideCfgOption(opt.CfgKey, opt.Value)
+	}
+}
+
+// parse HCL options
+func (config *ConfigScheme) ParseHCLOptions(hclOpts string) error {
 	// decode HCL object
-	hclTree, err := hcl.Parse(string(hclBytes))
+	hclTree, err := hcl.Parse(hclOpts)
 	if err != nil {
 		return err
 	}
@@ -150,7 +165,7 @@ func (config *ConfigScheme) ParseCmdLine() error {
 		arg := os.Args[i]
 
 		for j:=0; j < len(config.hclCliConfig.HclCliOpts); j++ {
-			opt := config.hclCliConfig.HclCliOpts[j]
+			opt := &config.hclCliConfig.HclCliOpts[j]
 
 			shortKey := "-" + opt.Switch.ShortKey
 			fullKey := "--" + opt.Switch.FullKey
@@ -173,20 +188,20 @@ func (config *ConfigScheme) ParseCmdLine() error {
 				break
 			}
 
-			if matched := CheckOptValType(opt.Name, os.Args[i], opt.Type); !matched {
-				return errors.New(fmt.Sprintf("Invalid value type '%v' for '%s' option", os.Args[i], opt.Name))
-			}
-
 			// check for variable type
 			i++
 			if i == len(os.Args) {
 				return errors.New(fmt.Sprintf("Missing argument for option '%s'", arg))
 			}
 
+			if matched := CheckOptValType(opt.Name, os.Args[i], opt.Type); !matched {
+				return errors.New(fmt.Sprintf("Invalid type '%v' for '%s' option value '%s'", opt.Type, opt.Name, os.Args[i]))
+			}
+
 			if opt.OverrideCfgPath == true {
 				config.overrideCfgPath = os.Args[i]
 			} else {
-				opt.Value = true
+				opt.Value = os.Args[i]
 			}
 
 			found = true

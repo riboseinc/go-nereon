@@ -27,30 +27,22 @@ package mconfig
 
 import (
 	"io/ioutil"
-	// "strings"
-	// "fmt"
-	// "reflect"
-	// "log"
+	"strings"
+	"fmt"
+	"reflect"
 
 	"github.com/hashicorp/hcl"
 )
 
 // parse configuration file
-func (config *ConfigScheme) ParseConfigFile(configFpath string, cfgDict interface{}) error {
+func (config *ConfigScheme) ConvertConfigToMap(configFpath string) error {
 	// read configuration file
 	cfg_data, err := ioutil.ReadFile(configFpath)
 	if err != nil {
 		return err
 	}
 
-	// get HCL tree
-	cfg_tree, err := hcl.Parse(string(cfg_data))
-	if err != nil {
-		return err
-	}
-
-	// parse HCL configuration
-	if err = hcl.DecodeObject(cfgDict, cfg_tree); err != nil {
+	if err := hcl.Unmarshal(cfg_data, &config.cfgMap); err != nil {
 		return err
 	}
 
@@ -58,15 +50,34 @@ func (config *ConfigScheme) ParseConfigFile(configFpath string, cfgDict interfac
 }
 
 // set configuration option
-func (config *ConfigScheme) SetCfgOption(key string, val interface{}, cfgDict interface{}) bool {
-	// seps := strings.Split(key, ".")
+func (config *ConfigScheme) OverrideCfgOption(key string, val interface{}) {
+	var i int
+	var cfg_map []map[string]interface{}
 
-	// for i:=0; i < len(seps); i++ {
-	// 	cfg_val = cfgDict[seps[i]]
-	// 	if cfg_val == nil {
-	// 		return false
-	// 	}
-	// }
+	seps := strings.Split(key, ".")
+	if len(seps) == 0 {
+		return
+	}
 
-	return true
+	cfg_val := config.cfgMap[seps[0]]
+	for i=1; i < len(seps); i++ {
+		if cfg_val == nil {
+			break
+		}
+
+		// check type
+		cfg_type := fmt.Sprintf("%v", reflect.TypeOf(cfg_val))
+		if cfg_type != "[]map[string]interface {}" {
+			break
+		}
+
+		cfg_map = cfg_val.([]map[string]interface{})
+		if i == len(seps) - 1 {
+			break
+		}
+		cfg_val = (cfg_map[0])[seps[i]]
+	}
+	cfg_map[0][seps[len(seps) - 1]] = val
+
+	return
 }
