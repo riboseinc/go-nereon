@@ -1,4 +1,40 @@
-= go-multiconfig
+= Nereon in Go (go-nereon)
 
-This Go library provides tools for using the common configuration model defined here:
-https://github.com/riboseinc/event-configuration-models
+Nereon in Go (`go-nereon`) is part of the https://github.com/riboseinc/nereon[Nereon project]
+for configuration management.
+
+This Go library provides tools for using the
+https://github.com/riboseinc/event-configuration-models[Nereon configuration models].
+
+== Purpose
+
+This library allows you to define all the following aspects using a unified,
+single configuration specification:
+
+* Environment variables for configuration
+* Configuration file syntax parsing
+* Command-line configuration options
+
+
+== Syntax
+
+The Nereon configuration syntax is loosely based on
+https://github.com/hashicorp/hcl[HCL] and
+https://github.com/vstakhov/libucl[UCL],
+who themselves are based on a JSON-like syntax inspired by `nginx`.
+
+
+== Usage
+
+More information to come.
+
+
+== Examples
+
+TBD.
+
+
+== Sample projects
+
+https://github.com/riboseinc/kaohi[Kaohi] is a logging daemon that uses
+`go-nereon` to define configuration options.
