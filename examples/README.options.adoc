@@ -1,10 +1,10 @@
+= Example specification of `go-nereon` configuration options
 
-# The example of the options for `go-multiconfig`
 
-```
-
+[source,go]
+----
 program "kaohi" {
-	"pid": "/var/run/kaohi.pid"
+	pid = "/var/run/kaohi.pid"
 }
 
 man {
@@ -85,4 +85,4 @@ config "listen" {
 	default = "127.0.0.1:8544"
 }
 
-```
+----
